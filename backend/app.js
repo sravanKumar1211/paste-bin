@@ -1,139 +1,90 @@
-// import express from 'express';
-// import mongoose from 'mongoose';
-// import dotenv from 'dotenv'; // Corrected import
-// import cors from 'cors';
-// import pasteRoutes from './routes/pasteRoutes.js';
-
-// // Load environment variables from .env file
-// dotenv.config();
-
-// const app = express();
-
-// // Standard Middleware
-// app.use(cors());
-// app.use(express.json());
-
-// // Routes
-// // Assignment Requirement: GET /api/healthz, POST /api/pastes, GET /api/pastes/:id
-// app.use('/', pasteRoutes); 
-
-// // Global Error Handler
-// // Assignment Requirement: Invalid inputs must return a 4xx status with a JSON error body [cite: 53]
-// app.use((err, req, res, next) => {
-//     console.error(err.stack);
-//     res.status(err.status || 500).json({
-//         error: err.message || "Internal Server Error"
-//     });
-// });
-
-// const PORT = process.env.PORT || 8000;
-// const MONGO_URI = process.env.MONGODB_URI;
-
-// if (!MONGO_URI) {
-//     console.error("MONGODB_URI is missing in .env file");
-//     process.exit(1);
-// }
-
-// // Connect to MongoDB Atlas (Persistence Layer) 
-// mongoose.connect(MONGO_URI)
-//     .then(() => {
-//         console.log("Connected to MongoDB Atlas");
-//         app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-//     })
-//     .catch(err => {
-//         console.error("Database connection failed:", err);
-//     });
-
-
-
-
-//     app.use(
-//   express.static(path.join(__dirname, '../frontend/paste-bin'))
-// );
-
-// app.use(/.*/, (_, res) => {
-//   res.sendFile(
-//     path.resolve(__dirname, '../frontend/paste-bin/index.html')
-//   );
-// });
-
-
-
-
-
-
-
-
 import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import path from 'path'; // Missing import fixed
-import { fileURLToPath } from 'url'; // Required for ES Modules __dirname
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pasteRoutes from './routes/pasteRoutes.js';
 
 dotenv.config();
 
 const app = express();
 
-// ES Module __dirname Fix
+// Recreate __dirname for ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Standard Middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
 /**
  * Health Check: GET /api/healthz
- * Requirement: Must return HTTP 200, JSON, and reflect persistence access [cite: 81, 82, 83, 85]
+ * Requirement: Must return HTTP 200 and reflect DB connection status
  */
-
+app.get('/api/healthz', (req, res) => {
+    const isConnected = mongoose.connection.readyState === 1;
+    res.status(isConnected ? 200 : 500).json({ ok: isConnected });
+});
 
 // API Routes
-app.use('/', pasteRoutes); 
+app.use('/api', pasteRoutes);
+app.use('/', pasteRoutes);
 
 /**
  * Static File Serving
- * Serving the React frontend from the backend to maintain a single domain [cite: 105, 148]
+ * Points to your frontend build folder
  */
-const frontendPath = path.join(__dirname, '../frontend/paste-bin/dist'); // Adjust 'dist' to your build folder name
+const frontendPath = path.join(__dirname, '../frontend/paste-bin/dist');
 app.use(express.static(frontendPath));
 
-// Catch-all for React Router: Redirects all non-API requests to index.html [cite: 128]
-app.get('*', (req, res) => {
-    // Ensure we don't accidentally catch API routes here
+// Catch-all route for React Router
+
+app.use((req, res, next) => {
+
     if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: "API route not found" });
+        return res.status(404).json({ error: "API endpoint not found" });
     }
-    res.sendFile(path.resolve(frontendPath, 'index.html'));
+
+    const indexPath = path.resolve(frontendPath, 'index.html');
+
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error("Frontend build missing at:", indexPath);
+            res.status(500).json({ 
+                error: "Frontend build files not found.",
+                instruction: "Run 'npm run build' in frontend folder"
+            });
+        }
+    });
 });
 
-// Global Error Handler
-// Requirement: Invalid inputs must return a 4xx status with a JSON body [cite: 107]
+
+// Error Handler
 app.use((err, req, res, next) => {
-    res.status(err.status || 500).json({
-        error: err.message || "Internal Server Error"
-    });
+    console.error(err.stack);
+    res.status(err.status || 500).json({ error: err.message || "Internal Server Error" });
 });
 
 const PORT = process.env.PORT || 8000;
 const MONGO_URI = process.env.MONGODB_URI;
 
 if (!MONGO_URI) {
-    console.error("MONGODB_URI is missing in .env file");
+    console.error("CRITICAL: MONGODB_URI is missing in .env");
     process.exit(1);
 }
 
-// Connect to MongoDB Atlas (Persistence Layer) [cite: 140]
+// Connect to MongoDB Atlas
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log("Connected to MongoDB Atlas");
-        // Start server only after DB is connected to ensure healthz is accurate
-        app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+        // Only start listening if we aren't on Vercel (Vercel handles listening itself)
+        if (process.env.NODE_ENV !== 'production') {
+            app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+        }
     })
     .catch(err => {
         console.error("Database connection failed:", err);
     });
 
-export default app; // Useful for Vercel
+export default app;

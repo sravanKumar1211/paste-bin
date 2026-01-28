@@ -1,59 +1,3 @@
-// import Paste from '../models/paste.js';
-// import { asyncHandler } from '../utils/asyncHandler.js';
-
-// // Helper to handle the "x-test-now-ms" header for automated testing
-// const getNow = (req) => {
-//     const testTime = req.headers['x-test-now-ms'];
-//     return testTime ? new Date(parseInt(testTime)) : new Date();
-// };
-
-// export const createPaste = asyncHandler(async (req, res) => {
-//     const { content, ttl_seconds, max_views } = req.body;
-//     if (!content) return res.status(400).json({ error: "Content is required" });
-
-//     const paste = await Paste.create({ content, ttl_seconds, max_views });
-    
-//     // Return the format expected by the assignment instructions
-//     res.status(201).json({
-//         id: paste._id,
-//         url: `${req.protocol}://${req.get('host')}/p/${paste._id}`
-//     });
-// });
-
-// export const getPaste = asyncHandler(async (req, res) => {
-//     const paste = await Paste.findById(req.params.id);
-//     const now = getNow(req);
-
-//     if (!paste) return res.status(404).json({ error: "Paste not found" });
-
-//     // logic for TTL expiry
-//     if (paste.ttl_seconds) {
-//         const expiryDate = new Date(paste.createdAt.getTime() + paste.ttl_seconds * 1000);
-//         if (now > expiryDate) {
-//             await Paste.findByIdAndDelete(paste._id);
-//             return res.status(404).json({ error: "Paste expired" });
-//         }
-//     }
-
-//     // logic for Max Views
-//     if (paste.max_views && paste.current_views >= paste.max_views) {
-//         await Paste.findByIdAndDelete(paste._id);
-//         return res.status(404).json({ error: "View limit reached" });
-//     }
-
-//     // Increment view count
-//     paste.current_views += 1;
-//     await paste.save();
-
-//     res.status(200).json(paste);
-// });
-
-
-
-
-
-
-
 
 import Paste from '../models/paste.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -137,4 +81,68 @@ export const getPaste = asyncHandler(async (req, res) => {
         remaining_views: remainingViews, // null if unlimited [cite: 117]
         expires_at: expiresAt // null if no TTL [cite: 118]
     });
+});
+
+
+
+export const viewPasteHTML = asyncHandler(async (req, res) => {
+    const paste = await Paste.findById(req.params.id);
+    const now = getNow(req);
+
+    if (!paste) {
+        return res.status(404).send("Paste not found");
+    }
+
+    // TTL check
+    if (paste.ttl_seconds) {
+        const expiryDate = new Date(paste.createdAt.getTime() + paste.ttl_seconds * 1000);
+        if (now > expiryDate) {
+            await Paste.findByIdAndDelete(paste._id);
+            return res.status(404).send("Paste expired");
+        }
+    }
+
+    // Max views check
+    if (paste.max_views && paste.current_views >= paste.max_views) {
+        await Paste.findByIdAndDelete(paste._id);
+        return res.status(404).send("View limit exceeded");
+    }
+
+    // Increment views
+    paste.current_views += 1;
+    await paste.save();
+
+    // Escape HTML to prevent script execution
+    const safeContent = paste.content
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    // Send HTML
+    res.status(200).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8" />
+            <title>Paste</title>
+            <style>
+                body {
+                    font-family: monospace;
+                    padding: 20px;
+                    background: #f4f4f4;
+                }
+                pre {
+                    background: white;
+                    padding: 15px;
+                    border-radius: 5px;
+                    white-space: pre-wrap;
+                    word-wrap: break-word;
+                }
+            </style>
+        </head>
+        <body>
+            <pre>${safeContent}</pre>
+        </body>
+        </html>
+    `);
 });
