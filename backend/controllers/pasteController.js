@@ -120,29 +120,92 @@ export const viewPasteHTML = asyncHandler(async (req, res) => {
 
     // Send HTML
     res.status(200).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8" />
-            <title>Paste</title>
-            <style>
-                body {
-                    font-family: monospace;
-                    padding: 20px;
-                    background: #f4f4f4;
-                }
-                pre {
-                    background: white;
-                    padding: 15px;
-                    border-radius: 5px;
-                    white-space: pre-wrap;
-                    word-wrap: break-word;
-                }
-            </style>
-        </head>
-        <body>
-            <pre>${safeContent}</pre>
-        </body>
-        </html>
+       <!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Paste</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: system-ui, monospace;
+      color: white;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 80px auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.6);
+    }
+
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .highlight {
+      color: #60a5fa;
+      margin-left: 4px;
+    }
+
+    pre {
+      background: rgba(0,0,0,.3);
+      padding: 16px;
+      border-radius: 10px;
+      color: #bfdbfe;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="card">
+
+      <div class="meta">
+        <div>
+          Views Remaining:
+          <span class="highlight">
+            ${paste.max_views ? paste.max_views - paste.current_views : "Unlimited"}
+          </span>
+        </div>
+
+        <div>
+          Expires:
+          <span class="highlight">
+            ${
+              paste.ttl_seconds
+                ? new Date(paste.createdAt.getTime() + paste.ttl_seconds * 1000).toLocaleString()
+                : "Never"
+            }
+          </span>
+        </div>
+      </div>
+
+      <pre>${safeContent}</pre>
+
+    </div>
+  </div>
+
+</body>
+</html>
     `);
 });
